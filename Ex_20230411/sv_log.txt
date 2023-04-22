@@ -1,0 +1,6 @@
+Accepted socket 4 from IP 127.0.0.1 at Sat Apr 15 14:47:49 2023: 52484
+127.0.0.1 Sat Apr 15 14:47:49 2023 20207642,Doan,14/05/2002,9
+
+Accepted socket 4 from IP 127.0.0.1 at Sat Apr 15 14:48:00 2023: 52484
+127.0.0.1 Sat Apr 15 14:48:00 2023 20237642,Nguyen Khoa Doan,14/02/2023,9.5
+
