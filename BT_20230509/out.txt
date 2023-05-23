@@ -1,6 +1,0 @@
-acc_db.txt
-chat_server
-chat_server.c
-out.txt
-telnet_server
-telnet_server.c
