@@ -7,145 +7,235 @@
 #include <string.h>
 #include <arpa/inet.h>
 
-int create_data_connection(char* ip, int port) {
-    int data_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+#define MAX_COMMAND_SIZE 256
+#define MAX_RESPONSE_SIZE 2048
 
-    struct sockaddr_in data_addr;
-    data_addr.sin_family = AF_INET;
-    data_addr.sin_addr.s_addr = inet_addr(ip);
-    data_addr.sin_port = htons(port);
-
-    if (connect(data_socket, (struct sockaddr *)&data_addr, sizeof(data_addr))) {
-        perror("connect() failed");
-        return -1;
-    }
-
-    return data_socket;
-}
-
-int main() {
+int main()
+{
     int ctrl_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
     struct sockaddr_in ctrl_addr;
     ctrl_addr.sin_family = AF_INET;
-    ctrl_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-    ctrl_addr.sin_port = htons(21); 
+    ctrl_addr.sin_addr.s_addr = inet_addr("172.28.144.1");
+    ctrl_addr.sin_port = htons(21);
 
-    if (connect(ctrl_socket, (struct sockaddr *)&ctrl_addr, sizeof(ctrl_addr))) {
+    if (connect(ctrl_socket, (struct sockaddr *)&ctrl_addr, sizeof(ctrl_addr)))
+    {
         perror("connect() failed");
         return 1;
     }
 
-    char buf[2048];
-    int len;
-
-    // Nhận xâu chào từ server
-    len = recv(ctrl_socket, buf, sizeof(buf), 0);
+    char buf[MAX_RESPONSE_SIZE];
+    int len = recv(ctrl_socket, buf, sizeof(buf), 0);
     buf[len] = 0;
     printf("%s", buf);
 
     char username[64], password[64];
 
-    printf("Nhap username: ");
-    scanf("%s", username);
-    printf("Nhap password: ");
-    scanf("%s", password);
+    while (1)
+    {
+        printf("Nhap username: ");
+        scanf("%s", username);
+        printf("Nhap password: ");
+        scanf("%s", password);
 
-    // Gửi lệnh USER
-    sprintf(buf, "USER %s\r\n", username);
-    send(ctrl_socket, buf, strlen(buf), 0);
+        sprintf(buf, "USER %s\r\n", username);
+        send(ctrl_socket, buf, strlen(buf), 0);
 
-    len = recv(ctrl_socket, buf, sizeof(buf), 0);
-    buf[len] = 0;
-    printf("%s", buf);
+        len = recv(ctrl_socket, buf, sizeof(buf), 0);
+        buf[len] = 0;
+        printf("%s", buf);
 
-    // Gửi lệnh PASS
-    sprintf(buf, "PASS %s\r\n", password);
-    send(ctrl_socket, buf, strlen(buf), 0);
+        sprintf(buf, "PASS %s\r\n", password);
+        send(ctrl_socket, buf, strlen(buf), 0);
 
-    len = recv(ctrl_socket, buf, sizeof(buf), 0);
-    buf[len] = 0;
-    printf("%s", buf);
+        len = recv(ctrl_socket, buf, sizeof(buf), 0);
+        buf[len] = 0;
+        printf("%s", buf);
 
-    if (strncmp(buf, "230", 3) != 0) {
-        printf("Dang nhap that bai.\n");
-        close(ctrl_socket);
-        return 1;
-    }
-
-    // Mở kết nối dữ liệu
-    // Gửi lệnh PASV hoặc EPSV
-    send(ctrl_socket, "EPSV\r\n", 6, 0);
-    len = recv(ctrl_socket, buf, sizeof(buf), 0);
-    buf[len] = 0;
-    printf("%s", buf);
-
-    int ip1, ip2, ip3, ip4, p1, p2;
-    char *pos1, *pos2, *temp;
-    
-    if (strncmp(buf, "229", 3) == 0) {
-        // Xử lý kết quả lệnh EPSV
-        pos1 = strchr(buf, '(') + 1;
-        pos2 = strchr(pos1, ')');
-        temp = pos1;
-        while (*temp != '\0') {
-            if (*temp == '|')
-                *temp = '.';
-            temp++;
+        if (strncmp(buf, "230", 3) == 0)
+        {
+            printf("Dang nhap thanh cong.\n");
+            break;
         }
-        sscanf(pos1, "%d.%d.%d.%d|%d|", &ip1, &ip2, &ip3, &ip4, &p1);
-    } else {
-        // Xử lý kết quả lệnh PASV
-        pos1 = strchr(buf, '(') + 1;
-        pos2 = strchr(pos1, ')');
-        sscanf(pos1, "%d,%d,%d,%d,%d,%d", &ip1, &ip2, &ip3, &ip4, &p1, &p2);
+        else
+        {
+            printf("Dang nhap that bai.\n");
+        }
     }
 
-    char data_ip[20];
-    sprintf(data_ip, "%d.%d.%d.%d", ip1, ip2, ip3, ip4);
-    int data_port = p1 * 256 + p2;
+    char command[MAX_COMMAND_SIZE];
+    int useEPSV = 0;
+    while (1)
+    {
+        printf("Nhap lenh PASV hoac EPSV: ");
+        scanf("%s", command);
 
-    // Mở kết nối dữ liệu
-    int data_socket = create_data_connection(data_ip, data_port);
-    if (data_socket == -1) {
-        return 1;
+        if (strcasecmp(command, "PASV") == 0)
+        {
+            useEPSV = 0;
+            break;
+        }
+        else if (strcasecmp(command, "EPSV") == 0)
+        {
+            useEPSV = 1;
+            break;
+        }
+        else
+        {
+            printf("Lenh khong hop le. Vui long nhap lai.\n");
+        }
     }
 
-    // Gửi lệnh STOR
-    send(ctrl_socket, "STOR test.txt\r\n", 15, 0);
-    len = recv(ctrl_socket, buf, sizeof(buf), 0);
-    buf[len] = 0;
-    printf("%s", buf);
+    if (useEPSV == 0)
+    {
+        send(ctrl_socket, "PASV\r\n", 6, 0);
+        len = recv(ctrl_socket, buf, sizeof(buf), 0);
+        buf[len] = 0;
+        printf("%s", buf);
 
-    // Đọc dữ liệu từ tệp tin
-    FILE *file = fopen("test.txt", "rb");
-    if (file == NULL) {
-        perror("Cannot open file");
+        char *pos1 = strchr(buf, '(') + 1;
+        char *pos2 = strchr(pos1, ')');
+        char temp[256];
+        int n = pos2 - pos1;
+        memcpy(temp, pos1, n);
+        temp[n] = 0;
+
+        char *p = strtok(temp, ",");
+        int i1 = atoi(p);
+        p = strtok(NULL, ",");
+        int i2 = atoi(p);
+        p = strtok(NULL, ",");
+        int i3 = atoi(p);
+        p = strtok(NULL, ",");
+        int i4 = atoi(p);
+        p = strtok(NULL, ",");
+        int p1 = atoi(p);
+        p = strtok(NULL, ",");
+        int p2 = atoi(p);
+
+        struct sockaddr_in data_addr;
+        data_addr.sin_family = AF_INET;
+        sprintf(temp, "%d.%d.%d.%d", i1, i2, i3, i4);
+        data_addr.sin_addr.s_addr = inet_addr(temp);
+        data_addr.sin_port = htons(p1 * 256 + p2);
+
+        int data_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+        if (connect(data_socket, (struct sockaddr *)&data_addr, sizeof(data_addr)))
+        {
+            perror("connect() failed");
+            return 1;
+        }
+
+        char *filename = "test.txt";
+        sprintf(buf, "STOR %s\r\n", filename);
+        send(ctrl_socket, buf, strlen(buf), 0);
+
+        len = recv(ctrl_socket, buf, sizeof(buf), 0);
+        buf[len] = 0;
+        printf("%s", buf);
+
+        FILE *file = fopen(filename, "rb");
+        if (file == NULL)
+        {
+            printf("Khong the mo file.\n");
+            return 1;
+        }
+
+        while (1)
+        {
+            int bytesRead = fread(buf, 1, sizeof(buf), file);
+            if (bytesRead <= 0)
+                break;
+
+            send(data_socket, buf, bytesRead, 0);
+        }
+
+        fclose(file);
         close(data_socket);
+
+        len = recv(ctrl_socket, buf, sizeof(buf), 0);
+        buf[len] = 0;
+        printf("%s", buf);
+
+        send(ctrl_socket, "QUIT\r\n", 6, 0);
+
+        len = recv(ctrl_socket, buf, sizeof(buf), 0);
+        buf[len] = 0;
+        printf("%s", buf);
+
         close(ctrl_socket);
-        return 1;
     }
+    else
+    {
+        send(ctrl_socket, "EPSV\r\n", 6, 0);
+        len = recv(ctrl_socket, buf, sizeof(buf), 0);
+        buf[len] = 0;
+        printf("%s", buf);
 
-    while ((len = fread(buf, 1, sizeof(buf), file)) > 0) {
-        send(data_socket, buf, len, 0);
+        char *pos1 = strchr(buf, '(') + 1;
+        char *pos2 = strchr(pos1, ')');
+        char temp[256];
+        int n = pos2 - pos1;
+        memcpy(temp, pos1, n);
+        temp[n] = 0;
+
+        char *p = strtok(temp, "|");
+        int p1 = atoi(p);
+
+        struct sockaddr_in data_addr;
+        data_addr.sin_family = AF_INET;
+        data_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+        data_addr.sin_port = htons(p1);
+
+        int data_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+        if (connect(data_socket, (struct sockaddr *)&data_addr, sizeof(data_addr)))
+        {
+            perror("connect() failed");
+            return 1;
+        }
+
+        char *filename = "test.txt";
+        sprintf(buf, "STOR %s\r\n", filename);
+        send(ctrl_socket, buf, strlen(buf), 0);
+
+        len = recv(ctrl_socket, buf, sizeof(buf), 0);
+        buf[len] = 0;
+        printf("%s", buf);
+
+        FILE *file = fopen(filename, "rb");
+        if (file == NULL)
+        {
+            printf("Cannot open file.\n");
+            return 1;
+        }
+
+        while (1)
+        {
+            int bytesRead = fread(buf, 1, sizeof(buf), file);
+            if (bytesRead <= 0)
+                break;
+
+            send(data_socket, buf, bytesRead, 0);
+        }
+
+        fclose(file);
+        close(data_socket);
+
+        len = recv(ctrl_socket, buf, sizeof(buf), 0);
+        buf[len] = 0;
+        printf("%s", buf);
+
+        send(ctrl_socket, "QUIT\r\n", 6, 0);
+
+        len = recv(ctrl_socket, buf, sizeof(buf), 0);
+        buf[len] = 0;
+        printf("%s", buf);
+
+        close(ctrl_socket);
     }
-
-    fclose(file);
-    close(data_socket);
-
-    // Nhận phản hồi còn lại của lệnh STOR
-    len = recv(ctrl_socket, buf, sizeof(buf), 0);
-    buf[len] = 0;
-    printf("%s", buf);
-
-    // Gửi lệnh QUIT
-    send(ctrl_socket, "QUIT\r\n", 6, 0);
-    len = recv(ctrl_socket, buf, sizeof(buf), 0);
-    buf[len] = 0;
-    printf("%s", buf);
-
-    // Đóng socket điều khiển
-    close(ctrl_socket);
 
     return 0;
 }
